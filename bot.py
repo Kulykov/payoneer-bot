@@ -1,9 +1,9 @@
 import os
+import aiohttp
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import CommandStart
 from dotenv import load_dotenv
-import aiohttp
 
 load_dotenv()
 
@@ -15,20 +15,16 @@ dp = Dispatcher()
 
 PRICE_PER_ACCOUNT = 10  # 10$ за аккаунт
 
-
 # ---------------- КНОПКИ ---------------------
-
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🛒 Купить аккаунты", callback_data="buy")],
     ])
 
-
 def back_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
     ])
-
 
 def amount_menu():
     kb = []
@@ -38,9 +34,7 @@ def amount_menu():
     kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back")])
     return InlineKeyboardMarkup(inline_keyboard=kb)
 
-
 # ----------------- ПРИВЕТСТВИЕ ----------------------
-
 @dp.message(CommandStart())
 async def start(message: Message):
     await message.answer(
@@ -48,16 +42,13 @@ async def start(message: Message):
         reply_markup=main_menu()
     )
 
-
 # ----------------- ВЫБОР КОЛИЧЕСТВА -----------------
-
 @dp.callback_query(F.data == "buy")
 async def buy_menu(callback: CallbackQuery):
     await callback.message.edit_text(
         "Выберите количество аккаунтов:",
         reply_markup=amount_menu()
     )
-
 
 @dp.callback_query(F.data == "back")
 async def go_back(callback: CallbackQuery):
@@ -66,9 +57,7 @@ async def go_back(callback: CallbackQuery):
         reply_markup=main_menu()
     )
 
-
 # ----------------- ОПЛАТА ---------------------------
-
 async def create_crypto_invoice(amount_usd: int):
     url = "https://pay.crypt.bot/api/createInvoice"
     headers = {"Crypto-Pay-API-Token": CRYPTOBOT_TOKEN}
@@ -78,11 +67,9 @@ async def create_crypto_invoice(amount_usd: int):
         "asset": "USDT",
         "description": f"Покупка аккаунтов на сумму {amount_usd}$",
     }
-
     async with aiohttp.ClientSession() as session:
         async with session.post(url, json=payload, headers=headers) as response:
             return await response.json()
-
 
 @dp.callback_query(F.data.startswith("amount_"))
 async def choose_amount(callback: CallbackQuery):
@@ -90,18 +77,15 @@ async def choose_amount(callback: CallbackQuery):
     total_price = count * PRICE_PER_ACCOUNT
 
     invoice = await create_crypto_invoice(total_price)
-
     if not invoice or "result" not in invoice:
         await callback.message.answer("Ошибка при создании инвойса!")
         return
 
     pay_url = invoice["result"]["pay_url"]
-
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💳 Оплатить", url=pay_url)],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
     ])
-
     await callback.message.edit_text(
         f"Вы выбрали: {count} аккаунтов.\n"
         f"Сумма к оплате: {total_price}$\n\n"
@@ -109,8 +93,6 @@ async def choose_amount(callback: CallbackQuery):
         reply_markup=kb
     )
 
-
 # ------------------ ЗАПУСК -------------------------
-
 if __name__ == "__main__":
     dp.run_polling(bot)
