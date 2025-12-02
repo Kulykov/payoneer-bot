@@ -4,8 +4,8 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils import executor
 
 # ------------------ CONFIG ------------------
-BOT_TOKEN = "PASTE_YOUR_BOT_TOKEN_HERE"
-CRYPTOBOT_API_KEY = "PASTE_CRYPTOBOT_API_KEY_HERE"
+BOT_TOKEN = "8597805865:AAFGXE9bbagglv4PiHDslhWSnPVZmp-1TAo"
+CRYPTOBOT_API_KEY = "495380:AAAdvdXSd121op9T5cGDVSgG8iQXZMjhOLO"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
