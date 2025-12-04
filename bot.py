@@ -1,50 +1,56 @@
 import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.utils import executor
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.filters import Command, Text
 
-# --------------------------------------------------
-#  CONFIG (ЗДЕСЬ ТОЛЬКО ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ!)
-# --------------------------------------------------
-# Перед запуском добавь в Render:
-# TOKEN=твой_телеграм_токен
-# CRYPTOBOT_TOKEN=твой_криптобот_токен
-# PRICE=10
-# --------------------------------------------------
-
-TOKEN = os.getenv("TOKEN")
-CRYPTOBOT_TOKEN = os.getenv("CRYPTOBOT_TOKEN")
+# ------------------ CONFIG ------------------
+TOKEN = os.getenv("TOKEN")  # Telegram token
+CRYPTOBOT_TOKEN = os.getenv("CRYPTOBOT_TOKEN")  # CryptoBot token
 PRICE = 10
 
 bot = Bot(token=TOKEN)
-dp = Dispatcher(bot)
+dp = Dispatcher()
 
-# --------------------------------------------------
-#   КНОПКИ
-# --------------------------------------------------
+# ------------------ KEYBOARDS ------------------
 
-main_menu = ReplyKeyboardMarkup(resize_keyboard=True)
-main_menu.add(KeyboardButton("🛒 Купить аккаунты"))
-main_menu.add(KeyboardButton("ℹ️ О боте"))
+# Главное меню
+main_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="🛒 Купить аккаунты")],
+        [KeyboardButton(text="ℹ️ О боте")]
+    ],
+    resize_keyboard=True
+)
 
-back_menu = ReplyKeyboardMarkup(resize_keyboard=True)
-back_menu.add(KeyboardButton("⬅️ Назад в меню"))
+# Кнопка "Назад"
+back_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="⬅️ Назад в меню")]
+    ],
+    resize_keyboard=True
+)
 
-# Инлайн-кнопки выбора количества
-
+# Inline-кнопки для выбора количества аккаунтов
 def amount_keyboard():
-    kb = InlineKeyboardMarkup(row_width=5)
-    buttons = []
+    kb = InlineKeyboardBuilder()
     for i in range(1, 11):
-        buttons.append(InlineKeyboardButton(text=str(i), callback_data=f"amount_{i}"))
-    kb.add(*buttons)
-    return kb
+        kb.button(text=str(i), callback_data=f"amount:{i}")
+    kb.adjust(5)
+    return kb.as_markup()
 
-# --------------------------------------------------
-#   COMMANDS
-# --------------------------------------------------
+# Inline-кнопка оплаты
+def payment_keyboard(total):
+    kb = InlineKeyboardBuilder()
+    pay_url = f"https://t.me/CryptoBot?start=merchant-{CRYPTOBOT_TOKEN}-{total}"
+    kb.button(text="💳 Оплатить через CryptoBot", url=pay_url)
+    kb.button(text="⬅️ Назад", callback_data="back_buy")
+    kb.adjust(1)
+    return kb.as_markup()
 
-@dp.message_handler(commands=["start", "menu"])
+# ------------------ HANDLERS ------------------
+
+@dp.message(Command("start"))
 async def start(message: types.Message):
     await message.answer(
         "👋 Добро пожаловать в *Sale Payoneer*!\n\n"
@@ -53,22 +59,13 @@ async def start(message: types.Message):
         reply_markup=main_menu
     )
 
-# --------------------------------------------------
-#   ОБРАБОТКА ТЕКСТОВЫХ КНОПОК
-# --------------------------------------------------
+# Главное меню
+@dp.message(Text("⬅️ Назад в меню"))
+async def back(message: types.Message):
+    await start(message)
 
-@dp.message_handler(lambda m: m.text == "🛒 Купить аккаунты")
+@dp.message(Text("🛒 Купить аккаунты"))
 async def buy_accounts(message: types.Message):
-    await message.answer(
-        "Выберите количество аккаунтов (1–10):",
-        reply_markup=back_menu,
-        reply_markup_inline=amount_keyboard()  # Ошибка: нельзя два reply_markup
-    )
-
-# Исправим: выводим одну клаву, затем инлайн
-
-@dp.message_handler(lambda m: m.text == "🛒 Купить аккаунты")
-async def buy_accounts_fixed(message: types.Message):
     await message.answer(
         "Выберите количество аккаунтов (1–10):",
         reply_markup=back_menu
@@ -78,45 +75,30 @@ async def buy_accounts_fixed(message: types.Message):
         reply_markup=amount_keyboard()
     )
 
-
-@dp.message_handler(lambda m: m.text == "ℹ️ О боте")
+@dp.message(Text("ℹ️ О боте"))
 async def about(message: types.Message):
     await message.answer(
         "Этот бот продаёт проверенные Payoneer аккаунты.\n"
-        "Цена: 10$ за аккаунт. Оплата через CryptoBot.",
+        f"Цена: {PRICE}$ за аккаунт. Оплата через CryptoBot.",
         reply_markup=back_menu
     )
 
-@dp.message_handler(lambda m: m.text == "⬅️ Назад в меню")
-async def back(message: types.Message):
-    await start(message)
-
-# --------------------------------------------------
-#   INLINE CALLBACKS
-# --------------------------------------------------
-
-@dp.callback_query_handler(lambda c: c.data.startswith("amount_"))
+# Callback для выбора количества
+@dp.callback_query(lambda c: c.data.startswith("amount:"))
 async def choose_amount(callback: types.CallbackQuery):
-    amount = int(callback.data.split("_")[1])
+    amount = int(callback.data.split(":")[1])
     total = amount * PRICE
-
-    pay_url = f"https://t.me/CryptoBot?start=merchant-{CRYPTOBOT_TOKEN}-{total}"
-
-    kb = InlineKeyboardMarkup()
-    kb.add(InlineKeyboardButton("💳 Оплатить через CryptoBot", url=pay_url))
-    kb.add(InlineKeyboardButton("⬅️ Назад", callback_data="back_buy"))
-
     await callback.message.edit_text(
         f"Вы выбрали: *{amount} аккаунтов*\n"
         f"Цена за штуку: {PRICE}$\n"
         f"Итого к оплате: *{total}$*",
         parse_mode="Markdown",
-        reply_markup=kb
+        reply_markup=payment_keyboard(total)
     )
     await callback.answer()
 
-
-@dp.callback_query_handler(lambda c: c.data == "back_buy")
+# Callback для кнопки "Назад" в оплате
+@dp.callback_query(Text("back_buy"))
 async def back_to_amount(callback: types.CallbackQuery):
     await callback.message.edit_text(
         "Выберите количество аккаунтов (1–10):",
@@ -124,10 +106,7 @@ async def back_to_amount(callback: types.CallbackQuery):
     )
     await callback.answer()
 
-# --------------------------------------------------
-#   START BOT
-# --------------------------------------------------
-
+# ------------------ RUN BOT ------------------
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
-
+    import asyncio
+    asyncio.run(dp.start_polling(bot))
